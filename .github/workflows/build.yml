@@ -1,4 +1,4 @@
-name: Kingfall Final Injection
+name: Kingfall HD Icon Build
 
 on:
   workflow_dispatch:  # 手动触发
@@ -18,15 +18,12 @@ jobs:
 
       - name: ⚡️ Check Source Icon
         run: |
-          # 寻找根目录图标
           SOURCE_ICON=$(find . -maxdepth 1 -iname "icon.png" -o -iname "icon.jpg" -o -iname "icon.jpeg" | head -n 1)
           if [ -z "$SOURCE_ICON" ]; then
-            echo "🛑 错误：没找到 icon.png！请确认文件已上传！"
-            ls -la
+            echo "🛑 错误：没找到 icon.png！"
             exit 1
           fi
           echo "✅ 锁定源图标: $SOURCE_ICON"
-          # 保存源图标路径供后续步骤使用
           echo "SOURCE_ICON_PATH=$SOURCE_ICON" >> $GITHUB_ENV
 
       - name: Build Xcode Project
@@ -34,11 +31,8 @@ jobs:
           PROJECT_FILE=$(find . -maxdepth 2 -name "*.xcodeproj" | head -n 1)
           PROJECT_NAME=$(basename "$PROJECT_FILE" .xcodeproj)
           SCHEME_NAME="$PROJECT_NAME"
-          
-          # 生成随机ID
           RANDOM_ID="com.fangyikai.app.$(date +%s)"
           
-          # 构建 (注意：这里构建出来的包可能没有图标，没关系，下面我们会强行塞进去)
           xcodebuild clean -project "$PROJECT_NAME.xcodeproj" -scheme "$SCHEME_NAME" -configuration Release
           
           xcodebuild build \
@@ -52,52 +46,48 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             PRODUCT_BUNDLE_IDENTIFIER="$RANDOM_ID"
 
-      - name: 💉 Inject Icons & Package IPA
+      - name: 💉 Inject HD Icons (Force Sharpness)
         run: |
-          # 1. 找到构建好的 App 文件夹
           RAW_APP_PATH=$(find build/Build/Products/Release-iphoneos -name "*.app" | head -n 1)
-          if [ -z "$RAW_APP_PATH" ]; then
-             echo "❌ 构建失败，找不到 .app"
-             exit 1
-          fi
-          echo "📦 目标 App 路径: $RAW_APP_PATH"
-
-          # 2. 准备 payload 文件夹
           mkdir Payload
-          # 复制 App 到 Payload，同时改名为英文 FangYiKai.app (防止SideStore报错)
           cp -R "$RAW_APP_PATH" Payload/FangYiKai.app
 
-          # 3. 【暴力植入】直接在 Payload/FangYiKai.app 里面生成图片
-          # 这一步绕过了 Xcode，直接写文件
           TARGET_DIR="Payload/FangYiKai.app"
           SRC="${{ env.SOURCE_ICON_PATH }}"
           
-          echo "💉 正在将图标强行植入到: $TARGET_DIR"
+          echo "💎 正在执行高清图标植入..."
           
-          # 生成 Info.plist 里指定的 filenames
-          # AppIcon-60@2x.png (120x120) - iPhone
-          sips -Z 120 "$SRC" --out "$TARGET_DIR/AppIcon-60@2x.png"
-          # AppIcon-60@3x.png (180x180) - iPhone Plus/Max
-          sips -Z 180 "$SRC" --out "$TARGET_DIR/AppIcon-60@3x.png"
-          # AppIcon-76@2x.png (152x152) - iPad
-          sips -Z 152 "$SRC" --out "$TARGET_DIR/AppIcon-76@2x.png"
-          # AppIcon-83.5@2x.png (167x167) - iPad Pro
-          sips -Z 167 "$SRC" --out "$TARGET_DIR/AppIcon-83.5@2x.png"
+          # 【Kingfall 核心逻辑】
+          # 不再缩小图片，而是将所有文件都设为高清尺寸 (至少 180px，推荐 1024px)
+          # 这样 iOS 会自动执行高质量的 Downsampling，保证图标锐利。
           
-          # 再做一个 Icon.png 兜底
-          sips -Z 57 "$SRC" --out "$TARGET_DIR/Icon.png"
-          sips -Z 114 "$SRC" --out "$TARGET_DIR/Icon@2x.png"
+          # 获取源图片的宽度，如果小于 180，就别折腾了，直接复制；如果很大，就保持原样
+          # 这里为了稳妥，我们把所有图标都重写为源图片的内容
+          
+          # 1. 基础 AppIcon 系列 (Info.plist 指向这个)
+          cp "$SRC" "$TARGET_DIR/AppIcon.png"
+          cp "$SRC" "$TARGET_DIR/AppIcon@2x.png"
+          cp "$SRC" "$TARGET_DIR/AppIcon@3x.png"
+          
+          # 2. 覆盖常见的尺寸命名 (防止 iOS 抽风去抓旧名字)
+          # 全部用原图覆盖！
+          cp "$SRC" "$TARGET_DIR/AppIcon-60@2x.png"
+          cp "$SRC" "$TARGET_DIR/AppIcon-60@3x.png"
+          cp "$SRC" "$TARGET_DIR/AppIcon-76@2x.png"
+          cp "$SRC" "$TARGET_DIR/AppIcon-83.5@2x.png"
+          cp "$SRC" "$TARGET_DIR/Icon.png"
+          cp "$SRC" "$TARGET_DIR/Icon@2x.png"
+          cp "$SRC" "$TARGET_DIR/Icon@3x.png"
 
-          # 4. 验证体积 (调试用)
-          echo "📊 检查植入后的图标文件："
+          # 3. 验证
+          echo "📊 植入文件列表 (文件大小应该比较大):"
           ls -lh "$TARGET_DIR" | grep "png"
 
-          # 5. 打包
-          # 使用 -ry 参数保留软连接，确保结构安全
-          zip -ry "FangYiKai_DirectInject.ipa" Payload
+          # 4. 打包
+          zip -ry "FangYiKai_HD.ipa" Payload
 
       - name: Upload IPA
         uses: actions/upload-artifact@v4
         with:
-          name: FangYiKai_DirectInject_IPA
+          name: FangYiKai_HD_IPA
           path: ./*.ipa
