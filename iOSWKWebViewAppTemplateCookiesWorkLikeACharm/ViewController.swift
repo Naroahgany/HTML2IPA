@@ -10,7 +10,7 @@ import WebKit
 import AVFoundation // 引入音频框架
 
 // 👇👇👇【请只修改下面这一行引号里的网址】👇👇👇
-let myTargetUrl = "https://m.bilibili.com"
+let myTargetUrl = "https://ngjgc4ugkxpsxzdxngashmha6bl54s3mrtcbg.netlify.app"
 // 👆👆👆【改成你的 AI 聊天网页地址】👆👆👆
 
 class ViewController: UIViewController {
