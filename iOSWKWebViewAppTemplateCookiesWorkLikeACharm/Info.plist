@@ -2,14 +2,20 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <!-- ✅【桌面名称】 -->
+    <!-- ✅【后台保活】允许后台播放音频 -->
+    <key>UIBackgroundModes</key>
+    <array>
+        <string>audio</string>
+        <string>fetch</string>
+    </array>
+
+    <!-- ✅【名称设置】 -->
     <key>CFBundleDisplayName</key>
     <string>方亦楷</string>
-    <!-- ✅【内部名称】 -->
     <key>CFBundleName</key>
     <string>FangYiKai</string>
     
-    <!-- ✅【高清修复】简化图标引用，配合脚本的大图策略 -->
+    <!-- ✅【高清图标索引】直接指向根目录文件，不使用 Assets.car -->
     <key>CFBundleIconName</key>
     <string>AppIcon</string>
     <key>CFBundleIcons</key>
@@ -18,7 +24,7 @@
         <dict>
             <key>CFBundleIconFiles</key>
             <array>
-                <string>AppIcon</string>
+                <string>AppIcon60x60</string>
             </array>
             <key>UIPrerenderedIcon</key>
             <false/>
@@ -30,7 +36,8 @@
         <dict>
             <key>CFBundleIconFiles</key>
             <array>
-                <string>AppIcon</string>
+                <string>AppIcon60x60</string>
+                <string>AppIcon76x76</string>
             </array>
             <key>UIPrerenderedIcon</key>
             <false/>
