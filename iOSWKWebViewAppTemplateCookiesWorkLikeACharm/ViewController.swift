@@ -2,12 +2,13 @@
 //  ViewController.swift
 //  iOSWKWebViewAppTemplateCookiesWorkLikeACharm
 //
-//  Kingfall V8: 纯净混音修复版 (No Ducking, Pure Mixing)
+//  Kingfall V10: 战术休眠与空包弹策略 (Tactical Dormancy & Blank Shot)
+//  平衡后台保活与电池寿命，完美解决音乐混音中断问题
 //
 
 import UIKit
 import WebKit
-import AVFoundation // 核心音频框架
+import AVFoundation
 
 // 👇👇👇【请只修改下面这一行引号里的网址】👇👇👇
 let myTargetUrl = "https://ngjgc4ugkxpsxzdxngashmha6bl54s3mrtcbg.netlify.app"
@@ -16,7 +17,9 @@ let myTargetUrl = "https://ngjgc4ugkxpsxzdxngashmha6bl54s3mrtcbg.netlify.app"
 class ViewController: UIViewController {
     
     private let webView = WKWebView(frame: .zero)
-    
+    // ✅ 战术播放器：只用一次，用完即弃
+    var tacticalPlayer: AVAudioPlayer?
+
     override var preferredStatusBarStyle: UIStatusBarStyle {
         return .default
     }
@@ -24,31 +27,73 @@ class ViewController: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         
-        // --- ✅【Kingfall 核心修复】音频会话配置 V8 ---
-        do {
-            // 1. 获取音频会话单例
-            let audioSession = AVAudioSession.sharedInstance()
-            
-            // 2. 设置 Category 为 Playback
-            //    原因：只有 Playback 才能在锁屏/后台时保持 App 运行。
-            // 3. 设置 Options 为 .mixWithOthers
-            //    关键点：这里去掉了 .duckOthers，确保不降低背景音乐音量。
-            //    关键点：.mixWithOthers 确保 App 音频与网易云音乐共存，而不是打断它。
-            try audioSession.setCategory(.playback, mode: .default, options: [.mixWithOthers])
-            
-            // 4. 激活会话
-            try audioSession.setActive(true)
-            
-            print("✅ Audio Session Configured: Playback + MixWithOthers (No Ducking)")
-        } catch {
-            print("❌ Failed to configure Audio Session: \(error)")
-        }
-        // -----------------------------------------------------------
+        // 1. 初始化界面
+        setupWebView()
         
+        // 2. 发射空包弹：配置会话并“开一枪”以锁定混合模式
+        primeAudioSession()
+        
+        // 3. 监听 App 回到前台，防止配置失效
+        NotificationCenter.default.addObserver(self, selector: #selector(appDidBecomeActive), name: UIApplication.didBecomeActiveNotification, object: nil)
+    }
+    
+    // MARK: - 🎵 Kingfall V10 核心：空包弹策略
+    func primeAudioSession() {
+        do {
+            // A. 强行配置会话：必须是 Playback + MixWithOthers
+            let session = AVAudioSession.sharedInstance()
+            // 关键：.duckOthers 必须去掉，.defaultToSpeaker 加上防止声音走听筒
+            try session.setCategory(.playback, options: [.mixWithOthers, .allowBluetooth, .defaultToSpeaker])
+            try session.setActive(true)
+            
+            // B. 动态生成一个 1秒 的极短静音 WAV 文件
+            // 目的：不是为了循环播放，而是为了让系统确认“这个 App 确实在用混合模式”
+            let sampleRate = 44100.0
+            let duration = 1.0 // 只播1秒
+            let frameCount = Int(sampleRate * duration)
+            let audioFormat = AVAudioFormat(standardFormatWithSampleRate: sampleRate, channels: 1)!
+            
+            let tempDir = FileManager.default.temporaryDirectory
+            let fileUrl = tempDir.appendingPathComponent("kingfall_blank_shot.wav")
+            
+            if !FileManager.default.fileExists(atPath: fileUrl.path) {
+                let audioFile = try AVAudioFile(forWriting: fileUrl, settings: audioFormat.settings)
+                if let buffer = AVAudioPCMBuffer(pcmFormat: audioFormat, frameCapacity: AVAudioFrameCount(frameCount)) {
+                    buffer.frameLength = AVAudioFrameCount(frameCount)
+                    try audioFile.write(from: buffer)
+                }
+            }
+            
+            // C. 播放一次，确立主权
+            tacticalPlayer = try AVAudioPlayer(contentsOf: fileUrl)
+            tacticalPlayer?.numberOfLoops = 0 // ✅ 0 表示不循环，播完就停！省电！
+            tacticalPlayer?.volume = 0.01 // 极低音量
+            tacticalPlayer?.prepareToPlay()
+            tacticalPlayer?.play()
+            
+            print("✅ Tactical Blank Shot Fired: 混合模式已锁定，原生播放器即将休眠。")
+            
+        } catch {
+            print("❌ Audio Setup Error: \(error)")
+        }
+    }
+    
+    // 当 App 每次回到前台时，再次确认音频配置（双重保险）
+    @objc func appDidBecomeActive() {
+        do {
+            try AVAudioSession.sharedInstance().setActive(true)
+            print("✅ App Active: 音频会话重新激活")
+        } catch {
+            print("⚠️ Reactivation failed")
+        }
+    }
+    
+    // MARK: - WebView Setup
+    func setupWebView() {
         view.backgroundColor = .systemBackground
         
         webView.translatesAutoresizingMaskIntoConstraints = false
-        webView.isOpaque = false 
+        webView.isOpaque = false
         webView.backgroundColor = .systemBackground
         webView.scrollView.contentInsetAdjustmentBehavior = .never
         
@@ -68,15 +113,11 @@ class ViewController: UIViewController {
             webView.uiDelegate = self
             webView.navigationDelegate = self
             
-            // --- ✅【网页媒体权限增强】 ---
-            // 允许网页不经过用户点击就能自动播放音频（防止静音脚本被拦截）
-            webView.configuration.mediaTypesRequiringUserActionForPlayback = []
-            // 允许内联播放，防止全屏播放器弹出
+            // ✅ 关键设置：允许网页全权控制音频
             webView.configuration.allowsInlineMediaPlayback = true
-            // 允许画中画（虽然静音音频用不到，但能增加保活权重）
-            webView.configuration.allowsPictureInPictureMediaPlayback = true
+            webView.configuration.mediaTypesRequiringUserActionForPlayback = []
             
-            // 注入 Viewport 适配代码
+            // 注入 Viewport 适配
             let source: String = "var meta = document.createElement('meta');" +
                 "meta.name = 'viewport';" +
                 "meta.content = 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover';" +
@@ -89,7 +130,7 @@ class ViewController: UIViewController {
     }
 }
 
-// 下面是 Cookie 持久化逻辑，保持不变
+// Cookie 保持逻辑 (保持不变)
 extension WKWebView {
     enum PrefKey { static let cookie = "cookies" }
     
