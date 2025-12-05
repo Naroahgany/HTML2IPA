@@ -1,4 +1,4 @@
-name: Custom App Build (V5 Fix)
+name: Kingfall V6 (Strict Icon Fix)
 
 on:
   workflow_dispatch:  # 手动触发
@@ -16,30 +16,79 @@ jobs:
         with:
           xcode-version: latest-stable
 
-      - name: Auto-Process & Safe Build
+      - name: ⚡️ Diagnose & Reconstruct Icons
         run: |
-          # --- 1. 智能查找项目 ---
+          # --- 1. 寻找用户上传的图标 (不分大小写) ---
+          # 寻找根目录下任何叫 icon.png/jpg/jpeg 的文件
+          SOURCE_ICON=$(find . -maxdepth 1 -iname "icon.png" -o -iname "icon.jpg" -o -iname "icon.jpeg" | head -n 1)
+
+          if [ -z "$SOURCE_ICON" ]; then
+            echo "🛑 致命错误：未找到 icon.png！"
+            echo "请确保你上传了图片，并且名字是 icon.png (或者 icon.jpg)"
+            echo "当前目录文件列表："
+            ls -la
+            exit 1
+          fi
+
+          echo "✅ 找到源图片: $SOURCE_ICON"
+
+          # --- 2. 定位图标文件夹 ---
+          ICON_SET_PATH=$(find . -type d -name "AppIcon.appiconset" | head -n 1)
+          if [ -z "$ICON_SET_PATH" ]; then
+             echo "🛑 致命错误：找不到 AppIcon.appiconset 文件夹！"
+             exit 1
+          fi
+
+          echo "✅ 定位到资源目录: $ICON_SET_PATH"
+          
+          # --- 3. 暴力重建 (Nuclear Rebuild) ---
+          # 哪怕原文件夹是空的，我们也强制生成标准尺寸
+          # iOS 需要的常见尺寸：20, 29, 40, 58, 60, 76, 80, 87, 120, 152, 167, 180, 1024
+          
+          # 定义一个生成函数
+          generate_icon() {
+            SIZE=$1
+            FILENAME="$ICON_SET_PATH/Icon-$SIZE.png"
+            sips -Z $SIZE "$SOURCE_ICON" --out "$FILENAME" > /dev/null
+          }
+
+          echo "⚡️ 正在生成全套图标..."
+          generate_icon 1024
+          generate_icon 180
+          generate_icon 167
+          generate_icon 152
+          generate_icon 120
+          generate_icon 87
+          generate_icon 80
+          generate_icon 76
+          generate_icon 60
+          generate_icon 58
+          generate_icon 40
+          generate_icon 29
+          generate_icon 20
+
+          # 强制覆盖原有的 Contents.json 里的图片引用 (简单粗暴法：覆盖所有同名文件)
+          # 这一步是为了防止原有的 Contents.json 指向了不存在的文件名
+          # 我们把刚才生成的图片，复制一份给所有原本存在的 PNG 文件名
+          find "$ICON_SET_PATH" -name "*.png" | while read EXISTING_IMG; do
+             # 获取原图需要的尺寸
+             TARGET_WIDTH=$(sips -g pixelWidth "$EXISTING_IMG" | awk '/pixelWidth:/{print $2}')
+             if [ -n "$TARGET_WIDTH" ]; then
+                sips -Z $TARGET_WIDTH "$SOURCE_ICON" --out "$EXISTING_IMG" > /dev/null
+             fi
+          done
+
+          echo "🎉 图标重建完成！"
+
+      - name: Build IPA (FangYiKai)
+        run: |
           PROJECT_FILE=$(find . -maxdepth 2 -name "*.xcodeproj" | head -n 1)
           PROJECT_NAME=$(basename "$PROJECT_FILE" .xcodeproj)
           SCHEME_NAME="$PROJECT_NAME"
-
-          # --- 2. 图标自动化替换 ---
-          ICON_SET_PATH=$(find . -type d -name "AppIcon.appiconset" | head -n 1)
-          SOURCE_ICON="icon.png"
-
-          if [ -f "$SOURCE_ICON" ] && [ -n "$ICON_SET_PATH" ]; then
-            echo "⚡️ 处理图标中..."
-            find "$ICON_SET_PATH" -name "*.png" | while read TARGET_IMG; do
-              WIDTH=$(sips -g pixelWidth "$TARGET_IMG" | awk '/pixelWidth:/{print $2}')
-              sips -Z $WIDTH "$SOURCE_ICON" --out "$TARGET_IMG" > /dev/null
-            done
-          fi
-
-          # --- 3. 生成随机 Bundle ID ---
+          
+          # 生成随机 ID 避免 SideStore 报错
           RANDOM_ID="com.fangyikai.app.$(date +%s)"
-          echo "✅ 生成唯一 ID: $RANDOM_ID"
-
-          # --- 4. 清理与构建 ---
+          
           xcodebuild clean -project "$PROJECT_NAME.xcodeproj" -scheme "$SCHEME_NAME" -configuration Release
 
           xcodebuild build \
@@ -53,31 +102,22 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             PRODUCT_BUNDLE_IDENTIFIER="$RANDOM_ID"
 
-          # --- 5. 安全打包 (关键修复步骤) ---
           mkdir Payload
-          # 找到编译好的 .app 文件
           RAW_APP_PATH=$(find build/Build/Products/Release-iphoneos -name "*.app" | head -n 1)
           
           if [ -z "$RAW_APP_PATH" ]; then
-            echo "❌ 构建失败"
-            exit 1
+             echo "❌ 构建失败"
+             exit 1
           fi
 
-          echo "📦 正在打包: $RAW_APP_PATH"
-          
-          # 【Kingfall 核心修复】：
-          # 不管原来的名字是中文还是乱码，我们复制的时候保持原名，
-          # 但因为我们修改了 Info.plist 的 CFBundleName 为英文，
-          # 所以这里的 RAW_APP_PATH 应该是英文名（如 FangYiKai.app）。
-          # 如果这里带有中文，SideStore 必挂。
-          
+          # 复制并保留英文内部名
           cp -R "$RAW_APP_PATH" Payload/
           
-          # 使用 -y 参数保留符号链接，防止结构损坏
-          zip -ry "FangYiKai_App.ipa" Payload
+          # 打包
+          zip -ry "FangYiKai_Fixed.ipa" Payload
 
       - name: Upload IPA
         uses: actions/upload-artifact@v4
         with:
-          name: FangYiKai_Final_IPA
+          name: FangYiKai_Fixed_IPA
           path: ./*.ipa
