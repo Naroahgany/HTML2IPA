@@ -1,4 +1,4 @@
-name: Custom App Build (Name & Icon)
+name: Custom App Build (V5 Fix)
 
 on:
   workflow_dispatch:  # 手动触发
@@ -16,49 +16,32 @@ jobs:
         with:
           xcode-version: latest-stable
 
-      - name: Auto-Process Icon & Build
+      - name: Auto-Process & Safe Build
         run: |
           # --- 1. 智能查找项目 ---
           PROJECT_FILE=$(find . -maxdepth 2 -name "*.xcodeproj" | head -n 1)
-          if [ -z "$PROJECT_FILE" ]; then
-            echo "❌ 错误：找不到项目文件！"
-            exit 1
-          fi
           PROJECT_NAME=$(basename "$PROJECT_FILE" .xcodeproj)
           SCHEME_NAME="$PROJECT_NAME"
-          echo "✅ 项目锁定: $PROJECT_NAME"
 
-          # --- 2. 图标自动化替换系统 (Kingfall Engine) ---
-          # 寻找项目中的 AppIcon 文件夹
+          # --- 2. 图标自动化替换 ---
           ICON_SET_PATH=$(find . -type d -name "AppIcon.appiconset" | head -n 1)
           SOURCE_ICON="icon.png"
 
           if [ -f "$SOURCE_ICON" ] && [ -n "$ICON_SET_PATH" ]; then
-            echo "✅ 发现自定义图标: $SOURCE_ICON"
-            echo "⚡️ 正在启动自动切图引擎..."
-            
-            # 遍历目标文件夹里的所有原有 PNG 图标
+            echo "⚡️ 处理图标中..."
             find "$ICON_SET_PATH" -name "*.png" | while read TARGET_IMG; do
-              # 获取原图标的尺寸 (例如 120)
               WIDTH=$(sips -g pixelWidth "$TARGET_IMG" | awk '/pixelWidth:/{print $2}')
-              
-              # 将用户的 icon.png 缩放至该尺寸，并覆盖原图
               sips -Z $WIDTH "$SOURCE_ICON" --out "$TARGET_IMG" > /dev/null
-              # echo "  - 已替换: $WIDTH px -> $TARGET_IMG"
             done
-            echo "🎉 图标替换完成！"
-          else
-            echo "⚠️ 未在根目录发现 icon.png，将使用默认图标。"
           fi
 
-          # --- 3. 生成随机 Bundle ID (防止安装失败) ---
-          RANDOM_ID="com.custom.app.$(date +%s)"
+          # --- 3. 生成随机 Bundle ID ---
+          RANDOM_ID="com.fangyikai.app.$(date +%s)"
           echo "✅ 生成唯一 ID: $RANDOM_ID"
 
           # --- 4. 清理与构建 ---
           xcodebuild clean -project "$PROJECT_NAME.xcodeproj" -scheme "$SCHEME_NAME" -configuration Release
 
-          # 强制覆盖 ID 并构建
           xcodebuild build \
             -project "$PROJECT_NAME.xcodeproj" \
             -scheme "$SCHEME_NAME" \
@@ -70,20 +53,31 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             PRODUCT_BUNDLE_IDENTIFIER="$RANDOM_ID"
 
-          # --- 5. 打包 IPA ---
+          # --- 5. 安全打包 (关键修复步骤) ---
           mkdir Payload
-          APP_PATH=$(find build/Build/Products/Release-iphoneos -name "*.app" | head -n 1)
+          # 找到编译好的 .app 文件
+          RAW_APP_PATH=$(find build/Build/Products/Release-iphoneos -name "*.app" | head -n 1)
           
-          if [ -z "$APP_PATH" ]; then
-            echo "❌ 构建失败，未找到 .app 文件"
+          if [ -z "$RAW_APP_PATH" ]; then
+            echo "❌ 构建失败"
             exit 1
           fi
 
-          # 这里的名字只会影响下载的文件名，不会影响安装后的名字
-          zip -r "My_Custom_App.ipa" Payload
+          echo "📦 正在打包: $RAW_APP_PATH"
+          
+          # 【Kingfall 核心修复】：
+          # 不管原来的名字是中文还是乱码，我们复制的时候保持原名，
+          # 但因为我们修改了 Info.plist 的 CFBundleName 为英文，
+          # 所以这里的 RAW_APP_PATH 应该是英文名（如 FangYiKai.app）。
+          # 如果这里带有中文，SideStore 必挂。
+          
+          cp -R "$RAW_APP_PATH" Payload/
+          
+          # 使用 -y 参数保留符号链接，防止结构损坏
+          zip -ry "FangYiKai_App.ipa" Payload
 
       - name: Upload IPA
         uses: actions/upload-artifact@v4
         with:
-          name: My_Custom_App_IPA
+          name: FangYiKai_Final_IPA
           path: ./*.ipa
