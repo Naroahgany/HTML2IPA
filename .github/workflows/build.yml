@@ -1,4 +1,4 @@
-name: Kingfall HD Icon Build
+name: Kingfall Ultimate (HD Icons + Audio)
 
 on:
   workflow_dispatch:  # 手动触发
@@ -18,12 +18,13 @@ jobs:
 
       - name: ⚡️ Check Source Icon
         run: |
+          # 寻找用户上传的图片
           SOURCE_ICON=$(find . -maxdepth 1 -iname "icon.png" -o -iname "icon.jpg" -o -iname "icon.jpeg" | head -n 1)
           if [ -z "$SOURCE_ICON" ]; then
-            echo "🛑 错误：没找到 icon.png！"
+            echo "🛑 错误：没找到 icon.png！请确认文件已上传！"
             exit 1
           fi
-          echo "✅ 锁定源图标: $SOURCE_ICON"
+          echo "✅ 锁定源图标: $SOURCE_ICON (将使用原图直出模式)"
           echo "SOURCE_ICON_PATH=$SOURCE_ICON" >> $GITHUB_ENV
 
       - name: Build Xcode Project
@@ -31,6 +32,8 @@ jobs:
           PROJECT_FILE=$(find . -maxdepth 2 -name "*.xcodeproj" | head -n 1)
           PROJECT_NAME=$(basename "$PROJECT_FILE" .xcodeproj)
           SCHEME_NAME="$PROJECT_NAME"
+          
+          # 生成随机 ID，防止 SideStore 缓存冲突
           RANDOM_ID="com.fangyikai.app.$(date +%s)"
           
           xcodebuild clean -project "$PROJECT_NAME.xcodeproj" -scheme "$SCHEME_NAME" -configuration Release
@@ -46,48 +49,46 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             PRODUCT_BUNDLE_IDENTIFIER="$RANDOM_ID"
 
-      - name: 💉 Inject HD Icons (Force Sharpness)
+      - name: 💉 Inject Raw HD Icons
         run: |
+          # 1. 准备路径
           RAW_APP_PATH=$(find build/Build/Products/Release-iphoneos -name "*.app" | head -n 1)
           mkdir Payload
           cp -R "$RAW_APP_PATH" Payload/FangYiKai.app
-
+          
           TARGET_DIR="Payload/FangYiKai.app"
           SRC="${{ env.SOURCE_ICON_PATH }}"
           
-          echo "💎 正在执行高清图标植入..."
+          echo "💎 正在执行【原图直出】植入..."
+          echo "警告：不进行任何裁剪或压缩，确保最高清晰度。"
           
-          # 【Kingfall 核心逻辑】
-          # 不再缩小图片，而是将所有文件都设为高清尺寸 (至少 180px，推荐 1024px)
-          # 这样 iOS 会自动执行高质量的 Downsampling，保证图标锐利。
+          # 2. 【核心操作】直接复制原图到所有可能的系统文件名
+          # 无论系统要60px还是180px，我们都给它喂这张高清大图
           
-          # 获取源图片的宽度，如果小于 180，就别折腾了，直接复制；如果很大，就保持原样
-          # 这里为了稳妥，我们把所有图标都重写为源图片的内容
+          # iPhone 格式
+          cp "$SRC" "$TARGET_DIR/AppIcon60x60@2x.png"
+          cp "$SRC" "$TARGET_DIR/AppIcon60x60@3x.png"
           
-          # 1. 基础 AppIcon 系列 (Info.plist 指向这个)
+          # iPad 格式
+          cp "$SRC" "$TARGET_DIR/AppIcon76x76@2x.png"
+          cp "$SRC" "$TARGET_DIR/AppIcon83.5x83.5@2x.png"
+          
+          # 通用兜底格式 (防止 Info.plist 配置遗漏)
           cp "$SRC" "$TARGET_DIR/AppIcon.png"
           cp "$SRC" "$TARGET_DIR/AppIcon@2x.png"
           cp "$SRC" "$TARGET_DIR/AppIcon@3x.png"
-          
-          # 2. 覆盖常见的尺寸命名 (防止 iOS 抽风去抓旧名字)
-          # 全部用原图覆盖！
-          cp "$SRC" "$TARGET_DIR/AppIcon-60@2x.png"
-          cp "$SRC" "$TARGET_DIR/AppIcon-60@3x.png"
-          cp "$SRC" "$TARGET_DIR/AppIcon-76@2x.png"
-          cp "$SRC" "$TARGET_DIR/AppIcon-83.5@2x.png"
           cp "$SRC" "$TARGET_DIR/Icon.png"
           cp "$SRC" "$TARGET_DIR/Icon@2x.png"
-          cp "$SRC" "$TARGET_DIR/Icon@3x.png"
-
-          # 3. 验证
-          echo "📊 植入文件列表 (文件大小应该比较大):"
+          
+          # 3. 验证文件大小 (原图通常较大，如果文件很大说明复制成功)
+          echo "📊 检查植入结果 (文件大小应与原图一致):"
           ls -lh "$TARGET_DIR" | grep "png"
 
           # 4. 打包
-          zip -ry "FangYiKai_HD.ipa" Payload
+          zip -ry "FangYiKai_Ultimate.ipa" Payload
 
       - name: Upload IPA
         uses: actions/upload-artifact@v4
         with:
-          name: FangYiKai_HD_IPA
+          name: FangYiKai_Ultimate_IPA
           path: ./*.ipa
