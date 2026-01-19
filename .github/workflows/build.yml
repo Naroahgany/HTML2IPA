@@ -33,8 +33,8 @@ jobs:
           PROJECT_NAME=$(basename "$PROJECT_FILE" .xcodeproj)
           SCHEME_NAME="$PROJECT_NAME"
           
-          # 生成随机 ID，防止 SideStore 缓存冲突
-          RANDOM_ID="com.archer.app.$(date +%s)"
+          # 生成随机 ID，防止 SideStore 缓存冲突【要改这里！！！】
+          RANDOM_ID="com.fangyikai.app.$(date +%s)"
           
           xcodebuild clean -project "$PROJECT_NAME.xcodeproj" -scheme "$SCHEME_NAME" -configuration Release
           
@@ -51,12 +51,12 @@ jobs:
 
       - name: 💉 Inject Raw HD Icons
         run: |
-          # 1. 准备路径
+          # 1. 准备路径【要改这里！！！！！】
           RAW_APP_PATH=$(find build/Build/Products/Release-iphoneos -name "*.app" | head -n 1)
           mkdir Payload
-          cp -R "$RAW_APP_PATH" Payload/FangYiKai.app
+          cp -R "$RAW_APP_PATH" Payload/fangyikai.app
           
-          TARGET_DIR="Payload/FangYiKai.app"
+          TARGET_DIR="Payload/fangyikai.app"
           SRC="${{ env.SOURCE_ICON_PATH }}"
           
           echo "💎 正在执行【原图直出】植入..."
@@ -77,11 +77,11 @@ jobs:
           # 3. 验证
           ls -lh "$TARGET_DIR" | grep "png"
 
-          # 4. 打包
-          zip -ry "Archer.ipa" Payload
+          # 4. 打包【要改这里！！！】
+          zip -ry "fangyikai.ipa" Payload
 
       - name: Upload IPA
         uses: actions/upload-artifact@v4
         with:
-          name: Archer_IPA
+          name: fangyikai_IPA
           path: ./*.ipa
