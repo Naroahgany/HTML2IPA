@@ -11,7 +11,7 @@ import UIKit
 import WebKit
 
 // 👇👇👇【请只修改下面这一行引号里的网址】👇👇👇
-let myTargetUrl = "https://ngjgc4ugkxpsxzdxngashmha6bl54s3mrtcbg.netlify.app"
+let myTargetUrl = "https://zkamsevaxdd0ncudp1eg9g2tqx8xxadvn3aix.netlify.app"
 // 👆👆👆【改成你的 AI 聊天网页地址】👆👆👆
 
 class ViewController: UIViewController {
