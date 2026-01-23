@@ -5,9 +5,9 @@
 
     <!-- ✅【名称设置！！！这里要改！！！】 -->
     <key>CFBundleDisplayName</key>
-    <string>方亦楷</string>
+    <string>Claude</string>
     <key>CFBundleName</key>
-    <string>方亦楷</string>
+    <string>Claude</string>
     
     <!-- ✅【高清图标索引】直接指向根目录文件 -->
     <key>CFBundleIconName</key>
