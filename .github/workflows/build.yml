@@ -34,7 +34,7 @@ jobs:
           SCHEME_NAME="$PROJECT_NAME"
           
           # 生成随机 ID，防止 SideStore 缓存冲突【要改这里！！！】
-          RANDOM_ID="com.fangyikai.app.$(date +%s)"
+          RANDOM_ID="com.claudeforme.app.$(date +%s)"
           
           xcodebuild clean -project "$PROJECT_NAME.xcodeproj" -scheme "$SCHEME_NAME" -configuration Release
           
@@ -54,9 +54,9 @@ jobs:
           # 1. 准备路径【要改这里！！！！！】
           RAW_APP_PATH=$(find build/Build/Products/Release-iphoneos -name "*.app" | head -n 1)
           mkdir Payload
-          cp -R "$RAW_APP_PATH" Payload/fangyikai.app
+          cp -R "$RAW_APP_PATH" Payload/claudeforme.app
           
-          TARGET_DIR="Payload/fangyikai.app"
+          TARGET_DIR="Payload/claudeforme.app"
           SRC="${{ env.SOURCE_ICON_PATH }}"
           
           echo "💎 正在执行【原图直出】植入..."
@@ -78,10 +78,10 @@ jobs:
           ls -lh "$TARGET_DIR" | grep "png"
 
           # 4. 打包【要改这里！！！】
-          zip -ry "fangyikai.ipa" Payload
+          zip -ry "claudeforme.ipa" Payload
 
       - name: Upload IPA
         uses: actions/upload-artifact@v4
         with:
-          name: fangyikai_IPA
+          name: claudeforme_IPA
           path: ./*.ipa
